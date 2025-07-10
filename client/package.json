@@ -1,5 +1,6 @@
 {
   "name": "mern-project-1",
+  "owner":"Soumyadip",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
