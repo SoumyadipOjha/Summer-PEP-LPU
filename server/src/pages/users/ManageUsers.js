@@ -2,40 +2,39 @@ import IconButton from '@mui/material/IconButton';
 import { DataGrid } from '@mui/x-data-grid';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import AssessmentIcon from '@mui/icons-material/Assessment';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { serverEndpoint } from "../../config/config";
 import { Modal } from 'react-bootstrap';
-import { usePermission } from '../../rbac/permissions';
-import { useNavigate } from 'react-router-dom';
 
-function LinkDashboard() {
-    const navigate = useNavigate();
+const USER_ROLES = ['viewer', 'developer'];
+
+function ManageUsers() {
     const [errors, setErrors] = useState({});
-    const [linksData, setLinksData] = useState([]);
+    const [usersData, setUsersData] = useState([]);
     const [formData, setFormData] = useState({
-        campaignTitle: '',
-        originalUrl: '',
-        category: ''
+        email: '',
+        name: '',
+        role: ''
     });
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
-    const permission = usePermission();
+    const [loading, setLoading] = useState(false);
+    const [formLoading, setFormLoading] = useState(false);
 
     const handleModalShow = (isEdit, data = {}) => {
         if (isEdit) {
             setFormData({
                 id: data._id,
-                campaignTitle: data.campaignTitle,
-                originalUrl: data.originalUrl,
-                category: data.category
+                email: data.email,
+                role: data.role,
+                name: data.name
             });
         } else {
             setFormData({
-                campaignTitle: '',
-                originalUrl: '',
-                category: ''
+                email: '',
+                role: '',
+                name: ''
             });
         }
         setIsEdit(isEdit);
@@ -48,9 +47,9 @@ function LinkDashboard() {
 
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-    const handleDeleteModalShow = (linkId) => {
+    const handleDeleteModalShow = (userId) => {
         setFormData({
-            id: linkId
+            id: userId
         });
         setShowDeleteModal(true);
     };
@@ -61,19 +60,21 @@ function LinkDashboard() {
 
     const handleDeleteSubmit = async () => {
         try {
+            setFormLoading(true);
             await axios.delete(
-                `${serverEndpoint}/links/${formData.id}`,
+                `${serverEndpoint}/users/${formData.id}`,
                 { withCredentials: true });
             setFormData({
-                campaignTitle: '',
-                originalUrl: '',
-                category: ''
+                email: '',
+                role: '',
+                name: ''
             });
-            fetchLinks();
+            fetchUsers();
         } catch (error) {
             setErrors({ message: 'Something went wrong, please try again' });
         } finally {
             handleDeleteModalClose();
+            setFormLoading(false);
         }
     };
 
@@ -90,18 +91,18 @@ function LinkDashboard() {
     const validate = () => {
         let newErrors = {};
         let isValid = true;
-        if (formData.campaignTitle.length === 0) {
-            newErrors.campaignTitle = "Campaign Title is mandatory";
+        if (formData.email.length === 0) {
+            newErrors.email = "Email is mandatory";
             isValid = false;
         }
 
-        if (formData.originalUrl.length === 0) {
-            newErrors.originalUrl = "Original URL is mandatory";
+        if (formData.role.length === 0) {
+            newErrors.role = "Role is mandatory";
             isValid = false;
         }
 
-        if (formData.category.length === 0) {
-            newErrors.category = "Category is mandatory";
+        if (formData.name.length === 0) {
+            newErrors.name = "Name is mandatory";
             isValid = false;
         }
 
@@ -113,10 +114,11 @@ function LinkDashboard() {
         event.preventDefault();
 
         if (validate()) {
+            setFormLoading(true);
             const body = {
-                campaign_title: formData.campaignTitle,
-                original_url: formData.originalUrl,
-                category: formData.category
+                email: formData.email,
+                name: formData.name,
+                role: formData.role
             };
             const configuration = {
                 withCredentials: true
@@ -124,87 +126,61 @@ function LinkDashboard() {
             try {
                 if (isEdit) {
                     await axios.put(
-                        `${serverEndpoint}/links/${formData.id}`,
+                        `${serverEndpoint}/users/${formData.id}`,
                         body, configuration);
                 } else {
                     await axios.post(
-                        `${serverEndpoint}/links`,
+                        `${serverEndpoint}/users`,
                         body, configuration);
                 }
 
                 setFormData({
-                    campaignTitle: '',
-                    originalUrl: '',
-                    category: ''
+                    email: '',
+                    name: '',
+                    role: ''
                 });
-                fetchLinks();
+                fetchUsers();
             } catch (error) {
-                if (error.response?.data?.code === 'INSUFFICIENT_FUNDS') {
-                    setErrors({
-                        message: `You do not have enough credits to perform this action.
-                        Add funds to your account using Manage Payment option`});
-                } else {
-                    setErrors({ message: 'Something went wrong, please try again' });
-                }
+                setErrors({ message: 'Something went wrong, please try again' });
             } finally {
                 handleModalClose();
+                setFormLoading(false);
             }
         }
     };
 
-    const fetchLinks = async () => {
+    const fetchUsers = async () => {
         try {
-            const response = await axios.get(`${serverEndpoint}/links`, {
+            setLoading(true);
+            const response = await axios.get(`${serverEndpoint}/users`, {
                 withCredentials: true
             });
-            setLinksData(response.data.data);
+            setUsersData(response.data);
         } catch (error) {
             console.log(error);
-            setErrors({ message: 'Unable to fetch links at the moment, please try again' });
+            setErrors({ message: 'Unable to fetch users at the moment, please try again' });
+        } finally {
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchLinks();
+        fetchUsers();
     }, []);
 
     const columns = [
-        { field: 'campaignTitle', headerName: 'Campaign', flex: 2 },
-        {
-            field: 'originalUrl', headerName: 'URL', flex: 3, renderCell: (params) => (
-                <a
-                    href={`${serverEndpoint}/links/r/${params.row._id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    {params.row.originalUrl}
-                </a>
-            ),
-        },
-        { field: 'category', headerName: 'Category', flex: 2 },
-        { field: 'clickCount', headerName: 'Clicks', flex: 1 },
+        { field: 'email', headerName: 'Email', flex: 2 },
+        { field: 'name', headerName: 'Name', flex: 2 },
+        { field: 'role', headerName: 'Role', flex: 2 },
         {
             field: 'action', headerName: 'Action', flex: 1, renderCell: (params) => (
                 <>
-                    {permission.canEditLink && (
-                        <IconButton>
-                            <EditIcon onClick={() => handleModalShow(true, params.row)} />
-                        </IconButton>
-                    )}
-
-                    {permission.canDeleteLink && (
-                        <IconButton>
-                            <DeleteIcon onClick={() => handleDeleteModalShow(params.row._id)} />
-                        </IconButton>
-                    )}
-
-                    {permission.canViewLink && (
-                        <IconButton>
-                            <AssessmentIcon onClick={() => {
-                                navigate(`/analytics/${params.row._id}`);
-                            }} />
-                        </IconButton>
-                    )}
+                    <IconButton>
+                        <EditIcon onClick={() => handleModalShow(true, params.row)} />
+                    </IconButton>
+                    <IconButton>
+                        <DeleteIcon onClick={() => handleDeleteModalShow(params.row._id)} />
+                    </IconButton>
                 </>
             )
         },
@@ -214,15 +190,8 @@ function LinkDashboard() {
         <div className="container py-4">
 
             <div className="d-flex justify-content-between mb-3">
-                <h2>Manage Affiliate Links</h2>
-                {permission.canCreateLink && (
-                    <button className='btn btn-primary btn-sm'
-                        onClick={() => handleModalShow(false)}
-                    >
-                        Add
-                    </button>
-                )}
-
+                <h2>Manage Users</h2>
+                <button className='btn btn-primary btn-sm' onClick={() => handleModalShow(false)}>Add</button>
             </div>
 
             {errors.message && (
@@ -234,7 +203,7 @@ function LinkDashboard() {
             <div style={{ height: 500, width: '100%' }}>
                 <DataGrid
                     getRowId={(row) => row._id}
-                    rows={linksData}
+                    rows={usersData}
                     columns={columns}
                     initialState={{
                         pagination: {
@@ -247,68 +216,84 @@ function LinkDashboard() {
                     sx={{
                         fontFamily: 'inherit'
                     }}
+                    loading={loading}
                 />
             </div>
 
             <Modal show={showModal} onHide={handleModalClose}>
                 <Modal.Header closeButton>
-                    <Modal.Title>{isEdit ? (<>Edit Link</>) : (<>Add Link</>)}</Modal.Title>
+                    <Modal.Title>{isEdit ? (<>Edit User</>) : (<>Add User</>)}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <form onSubmit={handleSubmit}>
                         <div className="mb-3">
-                            <label htmlFor="campaignTitle" className="form-label">Campaign Title</label>
+                            <label htmlFor="email" className="form-label">Email</label>
                             <input
                                 type="text"
-                                className={`form-control ${errors.campaignTitle ? 'is-invalid' : ''}`}
-                                id="campaignTitle"
-                                name="campaignTitle"
-                                value={formData.campaignTitle}
+                                className={`form-control ${errors.email ? 'is-invalid' : ''}`}
+                                id="email"
+                                name="email"
+                                value={formData.email}
                                 onChange={handleChange}
                             />
-                            {errors.campaignTitle && (
+                            {errors.email && (
                                 <div className="invalid-feedback">
-                                    {errors.campaignTitle}
+                                    {errors.email}
                                 </div>
                             )}
                         </div>
 
                         <div className="mb-3">
-                            <label htmlFor="originalUrl" className="form-label">Original URL</label>
+                            <label htmlFor="name" className="form-label">Name</label>
                             <input
                                 type="text"
-                                className={`form-control ${errors.originalUrl ? 'is-invalid' : ''}`}
-                                id="originalUrl"
-                                name="originalUrl"
-                                value={formData.originalUrl}
+                                className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                                id="name"
+                                name="name"
+                                value={formData.name}
                                 onChange={handleChange}
                             />
-                            {errors.originalUrl && (
+                            {errors.name && (
                                 <div className="invalid-feedback">
-                                    {errors.originalUrl}
+                                    {errors.name}
                                 </div>
                             )}
                         </div>
 
                         <div className="mb-3">
-                            <label htmlFor="category" className="form-label">Category</label>
-                            <input
-                                type="text"
-                                className={`form-control ${errors.category ? 'is-invalid' : ''}`}
-                                id="category"
-                                name="category"
-                                value={formData.category}
+                            <label htmlFor="role" className="form-label">Role</label>
+                            <select name="role" value={formData.role}
                                 onChange={handleChange}
-                            />
-                            {errors.category && (
+                                className={`form-control ${errors.role ? 'is-invalid' : ''}`}
+                            >
+                                <option key="select" value="">
+                                    Select
+                                </option>
+                                {USER_ROLES.map((role) => (
+                                    <option key={role} value={role}>
+                                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.role && (
                                 <div className="invalid-feedback">
-                                    {errors.category}
+                                    {errors.role}
                                 </div>
                             )}
                         </div>
 
                         <div className="d-grid">
-                            <button type="submit" className="btn btn-primary">Submit</button>
+                            {formLoading ? (
+                                <button className="btn btn-primary" type="button" disabled="">
+                                    <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+                                    <span className="visually-hidden" role="status">
+                                        Loading...
+                                    </span>
+                                </button>
+                            ) : (
+                                <button type="submit" className="btn btn-primary">Submit</button>
+                            )}
+
                         </div>
                     </form>
                 </Modal.Body>
@@ -325,13 +310,23 @@ function LinkDashboard() {
                     <button className="btn btn-secondary" onClick={() => setShowDeleteModal()}>
                         Cancel
                     </button>
-                    <button className="btn btn-danger" onClick={handleDeleteSubmit}>
-                        Delete
-                    </button>
+                    {formLoading ? (
+                        <button className="btn btn-danger" type="button" disabled="">
+                            <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+                            <span className="visually-hidden" role="status">
+                                Loading...
+                            </span>
+                        </button>
+                    ) : (
+                        <button className="btn btn-danger" onClick={handleDeleteSubmit}>
+                            Delete
+                        </button>
+                    )}
+
                 </Modal.Footer>
             </Modal>
         </div>
     );
 }
 
-export default LinkDashboard;
+export default ManageUsers;
